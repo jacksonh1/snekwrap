@@ -23,6 +23,25 @@ snekwrap.colabfold_batch_wrapper(
 
 The `snekwrap` library is intended to allow you to handle everything in python and mix and match different tools in a single script.
 
+## implemented features
+| Feature | Status |
+|---------|--------|
+| ColabFold | ✅ Implemented |
+| USalign | 🚧 in progress |
+| TMalign | 🚧 Planned |
+| MAFFT | ✅ Implemented |
+| MUSCLE | ✅ Implemented |
+| Clustal Omega | ✅ Implemented |
+| CD-HIT | ✅ Implemented |
+| ESMFold | 🚧 in progress |
+| proteinMPNN | 🚧 in progress |
+| AlphaFold3 | 🚧 Planned |
+| database query/download tools | ✅ Implemented |
+
+<!-- | basic sequence manipulation | ✅ Implemented | -->
+<!-- | basic structure manipulation | 🚧 planned | -->
+
+
 ## installation
 
 ```
