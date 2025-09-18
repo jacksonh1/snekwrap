@@ -25,14 +25,28 @@ The `snekwrap` library is intended to allow you to handle everything in python a
 
 ## installation
 
+```
+git clone https://github.com/jacksonh1/snekwrap.git
+cd snekwrap
+```
+
 run `make` to see available commands.
 
 to install the project, run:
 - `make create_environment` to create a conda environment with the required dependencies.
     - make sure to then activate the environment with `conda activate snekwrap`
 
+if you can't use `make` (e.g. on Windows), you can manually create the conda environment with:
+```
+conda create -n snekwrap "python~=3.10"
+conda env update --name snekwrap --file environment.yml
+conda activate snekwrap
+```
+
 
 ### configuration
+you will need to configure paths to various executables used by the wrappers. there are several options for how to do this:
+
 
 #### option 1: executables.yaml file
 update the `./snekwrap/executables.yaml` file with paths to executable commands.
