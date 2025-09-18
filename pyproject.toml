@@ -1,0 +1,43 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "snekwrap"
+version = "0.0.1"
+description = "A collection of python wrappers to run various bioinformatics/structural biology tools"
+authors = [
+  { name = "Jackson Halpin" },
+]
+# license = { file = "LICENSE" }
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License"
+]
+requires-python = "~=3.10"
+dependencies = [
+    "importlib-resources",
+    "numpy<2",
+    "python-dotenv",
+    "loguru",
+    "biopython >= 1.8",
+    "pandas",
+    "transformers",
+    "torch",
+    "biotite",
+]
+# [project.scripts]
+# align_structures_chimerax = "snekwrap.scripts.script.py:main"
+
+
+[tool.black]
+line-length = 99
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+)/
+'''
+

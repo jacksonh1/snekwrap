@@ -1,0 +1,28 @@
+name: snekwrap
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - flake8
+  - isort
+  - pip
+  - typer
+  - loguru
+  - tqdm
+  - ipython
+  - jupyterlab
+  - matplotlib
+  - seaborn
+  - notebook
+  - numpy<2
+  - pandas
+  - biopython>=1.80
+  - scikit-learn
+  - jupytext
+  - pip:
+    - python-dotenv
+    - mkdocs
+    - transformers
+    - torch
+    - biotite
+    - -e .
