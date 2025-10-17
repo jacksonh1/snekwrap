@@ -53,9 +53,13 @@ _default_executables = {
     "colabfold_data": "/path/to/colabfold_data",
     "chimerax": "chimerax",
     "mafft": "mafft",
+    "clustalo": "clustalo",
     "cd_hit": "cd-hit",
     "USalign": "USalign",
     "muscle": "muscle",
+    "proteinmpnn_repo": "../ProteinMPNN/",
+    "rfdiffusion_singularity": "rfd.sif",
+    "rfdiffusion_model_dir": "/path/to/rfdiffusion_models",
 }
 executables_file = [
     i for i in files("snekwrap").iterdir() if i.name == "executables.yaml"
@@ -79,9 +83,10 @@ MAFFT = os.environ.get("MAFFT", _EXECUTABLES["mafft"])
 CD_HIT = os.environ.get("CD_HIT", _EXECUTABLES["cd_hit"])
 USALIGN = os.environ.get("USALIGN", _EXECUTABLES["USalign"])
 MUSCLE = os.environ.get("MUSCLE", _EXECUTABLES["muscle"])
-CLUSTALO = os.environ.get("CLUSTALO", _EXECUTABLES.get("clustalo", "clustalo"))
-
-
+CLUSTALO = os.environ.get("CLUSTALO", _EXECUTABLES["clustalo"])
+PROTEINMPNN_REPO = os.environ.get("PROTEINMPNN_REPO", _EXECUTABLES["proteinmpnn_repo"])
+RFDIFFUSION_SINGULARITY = os.environ.get("RFDIFFUSION_SINGULARITY", _EXECUTABLES["rfdiffusion_singularity"])
+RFDIFFUSION_MODEL_DIR = os.environ.get("RFDIFFUSION_MODEL_DIR", _EXECUTABLES["rfdiffusion_model_dir"])
 
 
 COLABFOLD_PDB_PREDICTION_FILENAME_REGEX = r"(?P<name>.+)_\w+_rank_(?P<rank>\d+)_(?P<weights>.+)_model_._seed_\d\d\d.*\.pdb"

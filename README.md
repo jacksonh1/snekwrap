@@ -1,9 +1,14 @@
 # snekwrap
 
-directory structure based on CCDS template (https://cookiecutter-data-science.drivendata.org/)
-
 written by Jackson C. Halpin
 
+
+
+some code from ColabDesign (https://github.com/sokrypton/ColabDesign.git):
+- Specifically, [./snekwrap/backend/rfdiffusion/colabdesign_utils.py](./snekwrap/backend/rfdiffusion/colabdesign_utils.py) was taken from https://github.com/sokrypton/ColabDesign/blob/main/colabdesign/rf/utils.py
+
+some code was adapted from [ProteinMPNN](https://github.com/dauparas/ProteinMPNN):
+- specifically files in [./snekwrap/backend/proteinmpnn/](./snekwrap/backend/proteinmpnn/)
 
 ## overview
 A collection of python wrappers to run various bioinformatics/structural biology tools in python
@@ -12,7 +17,7 @@ A collection of python wrappers to run various bioinformatics/structural biology
 for example,
 ```python
 import snekwrap
-snekwrap.colabfold_batch_wrapper(
+snekwrap.colabfold.colabfold_batch_wrapper(
     input_file_or_directory="input_msa.a3m",
     output_directory="output_colabfold",
     weights="alphafold2_ptm",
@@ -34,7 +39,7 @@ The `snekwrap` library is intended to allow you to handle everything in python a
 | Clustal Omega | ✅ Implemented |
 | CD-HIT | ✅ Implemented |
 | ESMFold | 🚧 in progress |
-| proteinMPNN | 🚧 in progress |
+| proteinMPNN | ✅ Implemented |
 | AlphaFold3 | 🚧 Planned |
 | database query/download tools | ✅ Implemented |
 
@@ -61,7 +66,12 @@ conda create -n snekwrap "python~=3.10"
 conda env update --name snekwrap --file environment.yml
 conda activate snekwrap
 ```
-
+### RFDiffusion
+RFDiffusion requires a singularity image to run. It's quite easy to set up if you have singularity installed. I just ran:
+```bash
+singularity pull rfd.sif docker://rosettacommons/rfdiffusion
+```
+the rfd.sif file can then be placed anywhere, and the path set in the configuration (see below).
 
 ### configuration
 you will need to configure paths to various executables used by the wrappers. there are several options for how to do this:
@@ -79,6 +89,8 @@ cd_hit: "cd-hit"
 USalign: "USalign"
 muscle: "/Users/jackson/tools/muscle/muscle-5.1.0/src/Darwin/muscle"
 clustalo: "clustalo"
+proteinmpnn_repo: "/mnt/shared2/jch/09-fragfold/tools/_third_party/ProteinMPNN"
+rfdiffusion_singularity: "/mnt/shared2/jch/09-fragfold/tools/_third_party/rfdiffusion_singularity/rfd.sif"
 ```
 
 #### option 2: environment variables
@@ -93,6 +105,8 @@ export CD_HIT="cd-hit"
 export USALIGN="USalign"
 export MUSCLE="/Users/jackson/tools/muscle/muscle-5.1.0/src/Darwin/muscle"
 export CLUSTALO="clustalo"
+export PROTEINMPNN_REPO="/mnt/shared2/jch/09-fragfold/tools/_third_party/ProteinMPNN"
+export RFDIFFUSION_SINGULARITY="/mnt/shared2/jch/09-fragfold/tools/_third_party/rfdiffusion_singularity/rfd.sif"
 ```
 
 #### option 3: .env file
@@ -106,10 +120,12 @@ CD_HIT=cd-hit
 USALIGN=USalign
 MUSCLE=/Users/jackson/tools/muscle/muscle-5.1.0/src/Darwin/muscle
 CLUSTALO=clustalo
+PROTEINMPNN_REPO=/mnt/shared2/jch/09-fragfold/tools/_third_party/ProteinMPNN
+RFDIFFUSION_SINGULARITY=/mnt/shared2/jch/09-fragfold/tools/_third_party/rfdiffusion_singularity/rfd.sif
 ```
 
 #### option 4: default paths
-if you do not set any of the above, it will assume the executables are in your PATH and will use the default names:
+if you do not set any of the above, it will assume the executables are in your PATH and will use the default names. Not all tools will work this way, but some will. The defaults are:
 ```yaml
 colabfold_batch: "colabfold_batch"
 colabfold_data: "/path/to/colabfold_data"

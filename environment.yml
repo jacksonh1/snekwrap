@@ -21,6 +21,7 @@ dependencies:
   - jupytext
   - pip:
     - python-dotenv
+    - biopandas
     - mkdocs
     - transformers
     - torch
