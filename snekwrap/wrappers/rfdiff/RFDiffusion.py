@@ -6,19 +6,18 @@ from snekwrap import config
 from typing import Literal
 import subprocess
 import os
-import snekwrap.backend.sequence_utils as seq_utils
+import snekwrap.seq.seqtools as seq_utils
 from biopandas.pdb import PandasPdb
 import numpy as np
 import re
 import tempfile
 import shutil
-import snekwrap.backend.rfdiff.colabdesign_utils as colabdesign_utils
+import snekwrap.wrappers.rfdiff.colabdesign_utils as colabdesign_utils
 from Bio.PDB import PDBParser, MMCIFParser, PPBuilder # type: ignore
 from Bio.SeqIO.PdbIO import CifSeqresIterator
 from Bio import PDB
 from Bio.PDB import PDBIO
 from Bio.PDB import Select
-from snekwrap.backend import pdb_tools
 
 CHAIN_OPTIONS = set(list("ABCDEFGHIJKLMNOPQRSTUVWXYZ"))
 
@@ -182,14 +181,48 @@ def preprocess_pdb_for_fusion(contig_str, pdb_file):
     temp_file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".pdb")
     shutil.copy(pdb_file, temp_file.name)
     temp_file.close()
+    chain_change_map = {}
     for c in contigs:
         chain_set = get_unique_chain_set_in_contig(c)
         if len(chain_set) > 1:
             new_c = combine_chains(temp_file.name, temp_file.name, c)
             new_contigs.append(new_c)
+            if c in chain_change_map:
+                raise ValueError(f"Contig '{c}' has already been processed for chain combination. Something is very wrong.")
+            chain_change_map[c] = new_c
         else:
             new_contigs.append(c)
-    return temp_file, " ".join(new_contigs)
+    return temp_file, " ".join(new_contigs), chain_change_map
+
+
+def convert_chain_change_map_2_sane_dict(chain_change_map):
+    pattern = re.compile(r'([A-Za-z]+)(\d+)-(\d+)$')
+    mapping = {}
+    for k, v in chain_change_map.items():
+        key_str = k.strip('/0')
+        value_str = v.strip('/0')
+        key_parts = key_str.split("/")
+        value_parts = value_str.split("/")
+        for key_part, value_part in zip(key_parts, value_parts):
+            if pattern.match(key_part):
+                old_chain_id, old_start, old_end = pattern.match(key_part).groups()
+                old_start = int(old_start)
+                old_end = int(old_end)
+                new_chain_id, new_start, new_end = pattern.match(value_part).groups()
+                new_start = int(new_start)
+                new_end = int(new_end)
+                if old_chain_id in mapping:
+                    raise ValueError(f"Chain ID '{old_chain_id}' appears multiple times in chain change map. Cannot process.")
+                mapping[old_chain_id] = {}
+                mapping[old_chain_id]['new_chain_id'] = new_chain_id
+                mapping[old_chain_id]['residue_offset'] = new_start - old_start
+                mapping[old_chain_id]['old_range'] = (old_start, old_end)
+                mapping[old_chain_id]['new_range'] = (new_start, new_end)
+    return mapping
+# r"([A-Za-z]+)(\d+)-(\d+)"
+
+
+
 
 
 def fix_contigs_avoid_missing_residues(contig_str, pdb_file):
@@ -215,6 +248,17 @@ def fix_contigs_avoid_missing_residues(contig_str, pdb_file):
     return " ".join(new_contigs)
 
 
+def generate_filename_stem_counter(output_dir: Path, original_filename: Path) -> str:
+    stem = original_filename.stem
+    suffix = original_filename.suffix or ".pdb"
+    candidate = original_filename.name
+    counter = 1
+    while (output_dir / candidate).exists():
+        candidate = f"{stem}_{counter}{suffix}"
+        counter += 1
+    return candidate
+
+
 def run_rfdiffusion_singularity(
     input_pdb_file: str | Path,
     output_dir: str | Path,
@@ -235,41 +279,55 @@ def run_rfdiffusion_singularity(
     '''
     output_dir = Path(output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
+    original_input_pdb_file = Path(input_pdb_file)
+    _processed_input_pdb_filename = Path(original_input_pdb_file.stem + '_rfdiff_input.pdb')
+    original_contig_str = contig_str
+    chain_change_map = {}
     if fix_contigs:
-        temp_file, contig_str = preprocess_pdb_for_fusion(contig_str, input_pdb_file)
+        print("pre-fusion contig:", contig_str)
+        temp_file, contig_str, chain_change_map = preprocess_pdb_for_fusion(contig_str, original_input_pdb_file)# temp file is created but not copied to output dir
         print(f"Post-fusion contig: {contig_str}")
         contig_str = fix_contigs_avoid_missing_residues(contig_str, temp_file.name)
         print(f"Post-missing-residue-fix contig: {contig_str}")
-        input_pdb_file = output_dir / "input.pdb"
+        processed_input_pdb_filename = generate_filename_stem_counter(output_dir, _processed_input_pdb_filename)
+        input_pdb_file = output_dir / processed_input_pdb_filename
     else:
-        input_pdb_file = Path(input_pdb_file).resolve()
+        temp_file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".pdb")
+        shutil.copy(original_input_pdb_file.resolve(), temp_file.name)
+        temp_file.close()
+        processed_input_pdb_filename = generate_filename_stem_counter(output_dir, _processed_input_pdb_filename)
+        input_pdb_file = output_dir / processed_input_pdb_filename
     input_pdb_dir = input_pdb_file.parent
-    input_pdb_filename = input_pdb_file.name
     schedule_path = output_dir / "schedules"
     schedule_path.mkdir(parents=True, exist_ok=True)
     rfdiffusion_command = f"""singularity run --nv \
     --writable-tmpfs \
     --pwd /app/RFdiffusion \
-    --bind {model_dir}:$HOME/models \
     --bind {input_pdb_dir}:$HOME/inputs \
     --bind {output_dir}:$HOME/outputs \
     --bind {schedule_path}:$HOME/schedules \
     {singularity_exec_file} \
     inference.output_prefix=$HOME/outputs/{output_prefix} \
-    inference.model_directory_path=$HOME/models \
+    inference.model_directory_path=/app/models \
     inference.schedule_directory_path=$HOME/schedules \
-    inference.input_pdb=$HOME/inputs/{input_pdb_filename} \
+    inference.input_pdb=$HOME/inputs/{processed_input_pdb_filename} \
     inference.num_designs={num_designs} \
     'contigmap.contigs=[{contig_str}]' \
     inference.write_trajectory={str(write_trajectory).lower()} \
     {extra_args}"""
+    produced_pdbs = [output_dir / f"{output_prefix}_{i}.pdb" for i in range(num_designs)]
     arguments = {
+        "unprocessed_input_pdb_file": str(original_input_pdb_file.resolve()),
+        "processing-chain_changes": chain_change_map,
+        "processing-chain_change_conversion_map": convert_chain_change_map_2_sane_dict(chain_change_map),
         "input_pdb_file": str(input_pdb_file),
         "output_dir": str(output_dir),
         "output_prefix": output_prefix,
+        "output_pdbs": [str(i) for i in produced_pdbs],
         "singularity_exec_file": str(singularity_exec_file),
-        "model_dir": str(model_dir),
+        # "model_dir": str(model_dir),
         "num_designs": num_designs,
+        "original_contig_str": original_contig_str,
         "contig_str": contig_str,
         # "diffuser_steps": diffuser_steps,
         "hotspot_residues": hotspot_residues,
@@ -277,20 +335,31 @@ def run_rfdiffusion_singularity(
         "extra_args": str(extra_args),
         "fix_contigs": fix_contigs,
     }
+    # --bind {model_dir}:$HOME/models \
+    # inference.model_directory_path=$HOME/models \
     # ppi.hotspot_residues='[E64,E88,E96]' \
     # diffuser.T={diffuser_steps} # DON'T MESS WITH THIS \
-    produced_pdbs = [output_dir / f"{output_prefix}_{i}.pdb" for i in range(num_designs)]
     if all(p.exists() for p in produced_pdbs):
         print("All output PDBs already exist, skipping RFDiffusion run.")
         return rfdiffusion_command, arguments
+    rfdiff_params_path = output_dir / "rfdiff_params.json"
+    if not rfdiff_params_path.exists():
+        existing_arguments = []
+    else:
+        with open(rfdiff_params_path, "r") as f:
+            existing_arguments = json.load(f)
+    existing_arguments.append(arguments)
+    with open(rfdiff_params_path, "w") as f:
+        json.dump(existing_arguments, f, indent=4)
+    rfdiff_command_path = output_dir / "rfdiff_command.sh"
+    if not rfdiff_command_path.exists():
+        rfdiff_command_path.touch()
+    with open(rfdiff_command_path, "a") as f:
+        f.write(rfdiffusion_command + "\n")
     if run:
-        shutil.copy(temp_file.name, output_dir / "input.pdb")
+        shutil.copy(temp_file.name, input_pdb_file) # copy temp file to output dir
         os.remove(temp_file.name)
         subprocess.run(rfdiffusion_command, shell=True, check=True)
-        with open(output_dir / "rfdiff_params.json", "w") as f:
-            json.dump(arguments, f, indent=4)
-        with open(output_dir / "rfdiff_command.sh", "w") as f:
-            f.write(rfdiffusion_command + "\n")
         # contigs = contig_str.replace('/0 ', ' ').split(" ")
         # contigs = contig_str.split(" ")
         # for pdb in produced_pdbs:

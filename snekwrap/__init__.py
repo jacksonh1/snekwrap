@@ -1,15 +1,16 @@
+from loguru import logger
+logger.info("Importing snekwrap package")
+logger.info("importing config")
 from snekwrap import config as config
-import snekwrap.backend.cdhit as cdhit
-import snekwrap.backend.colabfold as colabfold
-import snekwrap.backend.database_queries as database_queries
-import snekwrap.backend.esmfold as esmfold
-import snekwrap.backend.MSAs as MSAs
-import snekwrap.backend.sequence_utils as sequence_utils
-import snekwrap.backend.proteinmpnn.protein_mpnn as protein_mpnn
-import snekwrap.backend.rfdiff.RFDiffusion as RFDiffusion
+logger.info("importing external wrappers")
+import snekwrap.wrappers as wrappers
+logger.info("importing database_queries")
+import snekwrap.database_queries as database_queries
+logger.info("importing sequence_utils")
+import snekwrap.seq.seqtools as seqtools
+import snekwrap.struct.biopython_tools as bptools
 
-__all__ = ["config", "cdhit", "colabfold", "database_queries", "esmfold", "MSAs", "sequence_utils", "protein_mpnn", "RFDiffusion"]
-
-
+# __all__ = ["config", "cdhit", "colabfold", "database_queries", "esmfold", "MSAs", "sequence_utils", "protein_mpnn", "RFDiffusion"]
+__all__ = ["config", "wrappers", "database_queries", "seqtools", "bptools"]
 
 

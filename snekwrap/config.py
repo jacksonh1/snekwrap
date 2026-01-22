@@ -9,6 +9,29 @@ from dataclasses import dataclass
 import os
 import copy
 
+_three_to_one_dict = {
+    'Ala': 'A',
+    'Cys': 'C',
+    'Asp': 'D',
+    'Glu': 'E',
+    'Phe': 'F',
+    'Gly': 'G',
+    'His': 'H',
+    'Ile': 'I',
+    'Lys': 'K',
+    'Leu': 'L',
+    'Met': 'M',
+    'Asn': 'N',
+    'Pro': 'P',
+    'Gln': 'Q',
+    'Arg': 'R',
+    'Ser': 'S',
+    'Thr': 'T',
+    'Val': 'V',
+    'Trp': 'W',
+    'Tyr': 'Y'
+}
+THREE_TO_ONE_DICT = {k.upper(): v for k, v in _three_to_one_dict.items()}
 # Load environment variables from .env file if it exists
 load_dotenv(override=True)
 
@@ -58,8 +81,15 @@ _default_executables = {
     "USalign": "USalign",
     "muscle": "muscle",
     "proteinmpnn_repo": "../ProteinMPNN/",
+    "pottsmpnn_repo": "../PottsMPNN/",
     "rfdiffusion_singularity": "rfd.sif",
     "rfdiffusion_model_dir": "/path/to/rfdiffusion_models",
+    # BioEmu related defaults
+    # If you want to run BioEmu inside a dedicated conda env, set the env name here
+    # or via environment variable BIOEMU_CONDA_ENV. If you have a specific executable
+    # path, set bioemu_executable or env var BIOEMU_EXECUTABLE.
+    "bioemu_executable": "bioemu",
+    "bioemu_conda_env": None,
 }
 executables_file = [
     i for i in files("snekwrap").iterdir() if i.name == "executables.yaml"
@@ -85,8 +115,14 @@ USALIGN = os.environ.get("USALIGN", _EXECUTABLES["USalign"])
 MUSCLE = os.environ.get("MUSCLE", _EXECUTABLES["muscle"])
 CLUSTALO = os.environ.get("CLUSTALO", _EXECUTABLES["clustalo"])
 PROTEINMPNN_REPO = os.environ.get("PROTEINMPNN_REPO", _EXECUTABLES["proteinmpnn_repo"])
+POTTSMPNN_REPO = os.environ.get("POTTSMPNN_REPO", _EXECUTABLES["pottsmpnn_repo"])
 RFDIFFUSION_SINGULARITY = os.environ.get("RFDIFFUSION_SINGULARITY", _EXECUTABLES["rfdiffusion_singularity"])
 RFDIFFUSION_MODEL_DIR = os.environ.get("RFDIFFUSION_MODEL_DIR", _EXECUTABLES["rfdiffusion_model_dir"])
+
+# BioEmu
+BIOEMU_EXECUTABLE = os.environ.get("BIOEMU_EXECUTABLE", _EXECUTABLES.get("bioemu_executable", "bioemu"))
+# If BIOEMU_CONDA_ENV is unset or empty, the wrapper will run without conda run
+BIOEMU_CONDA_ENV = os.environ.get("BIOEMU_CONDA_ENV", _EXECUTABLES.get("bioemu_conda_env"))
 
 
 COLABFOLD_PDB_PREDICTION_FILENAME_REGEX = r"(?P<name>.+)_\w+_rank_(?P<rank>\d+)_(?P<weights>.+)_model_._seed_\d\d\d.*\.pdb"

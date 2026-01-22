@@ -11,7 +11,7 @@ import torch
 import snekwrap.config as config
 from pathlib import Path
 from typing import Literal
-from snekwrap.backend.proteinmpnn.protein_mpnn_utils import (
+from snekwrap.wrappers.proteinmpnn.protein_mpnn_utils import (
     tied_featurize, parse_PDB, StructureDatasetPDB, ProteinMPNN, _scores, _S_to_seq
 )
 

@@ -15,7 +15,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License"
 ]
-requires-python = "~=3.10"
+requires-python = "~=3.11"
 dependencies = [
     "importlib-resources",
     "numpy<2",
@@ -26,6 +26,10 @@ dependencies = [
     "transformers",
     "torch",
     "biotite",
+    "biopandas",
+    "logomaker",
+    "a3mcat @ git+https://github.com/jacksonh1/a3mcat.git",
+    # "pymol-open-source", # causes issues with numpy. conda must be installing an earlier version of pymol that doesn't require numpy>2
 ]
 # [project.scripts]
 # align_structures_chimerax = "snekwrap.scripts.script.py:main"

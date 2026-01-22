@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import snekwrap.backend.sequence_utils as tools
+import snekwrap.seq.seqtools as tools
 import snekwrap.config as config
 import os
 import subprocess

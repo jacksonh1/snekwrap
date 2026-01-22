@@ -5,7 +5,7 @@ from snekwrap import config
 from typing import Literal
 import subprocess
 import os
-import snekwrap.backend.sequence_utils as seq_utils
+import snekwrap.seq.seqtools as seq_utils
 
 
 

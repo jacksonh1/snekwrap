@@ -10,7 +10,7 @@ from Bio import Align, AlignIO, Seq, SeqIO
 
 from Bio.SeqRecord import SeqRecord
 import snekwrap.config as config
-import snekwrap.backend.sequence_utils as tools
+import snekwrap.seq.seqtools as tools
 from typing import Literal
 
 

@@ -2,7 +2,6 @@ name: snekwrap
 channels:
   - conda-forge
 dependencies:
-  - python=3.10
   - flake8
   - isort
   - pip
@@ -19,11 +18,13 @@ dependencies:
   - biopython>=1.80
   - scikit-learn
   - jupytext
+  - biotite==1.4.0
+  - nglview
   - pip:
     - python-dotenv
+    - py3Dmol
+    - graphein
     - biopandas
     - mkdocs
-    - transformers
-    - torch
-    - biotite
+    - bioemu
     - -e .
