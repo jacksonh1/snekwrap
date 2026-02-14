@@ -38,6 +38,7 @@ def run_protein_mpnn(
     sampling_temp: str = "0.1",
     model_weights_folder: Literal["vanilla_model_weights", "soluble_model_weights"] = "soluble_model_weights",  # Only allow these two values
     backbone_noise: float = 0.20,
+    omit_AAs: list[str] | None = None,
     model_name: str = "v_48_020",
     proteinmpnn_repo: str | Path = config.PROTEINMPNN_REPO,
 ) -> list[ProteinMPNNSample]:
@@ -95,7 +96,13 @@ def run_protein_mpnn(
     NUM_BATCHES = num_seq_per_target // batch_size
     BATCH_COPIES = batch_size
     temperatures = [float(item) for item in str(sampling_temp).split()]
-    omit_AAs = "X"
+    if omit_AAs is None:
+        omit_AAs = ["X"]
+    if "X" not in omit_AAs:
+        omit_AAs.append("X")
+    omit_AAs = list(set(omit_AAs))
+    omit_AAs = [i.upper() for i in omit_AAs]
+    omit_AAs = ''.join(omit_AAs)
     alphabet = "ACDEFGHIKLMNPQRSTVWYX"
     omit_AAs_np = np.array([AA in omit_AAs for AA in alphabet]).astype(np.float32)
     bias_AAs_np = np.zeros(len(alphabet))

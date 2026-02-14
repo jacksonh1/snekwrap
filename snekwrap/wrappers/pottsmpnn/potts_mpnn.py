@@ -15,10 +15,11 @@ import json
 import os
 import sys
 import tempfile
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Dict, Iterable, Optional
+from typing import Dict, Iterable, Optional, Tuple
 
 from omegaconf import OmegaConf
 
@@ -37,6 +38,10 @@ class PottsMPNNSample:
     chain_sequences: Dict[str, str]  # per-chain sequences
     sample_number: Optional[int] = None
     source_file: Optional[Path] = None
+    optimization_mode: Optional[str] = None
+    optimized_sequence: Optional[str] = None
+    optimized_chain_sequences: Optional[Dict[str, str]] = None
+    optimized_source_file: Optional[Path] = None
 
 
 @contextlib.contextmanager
@@ -126,6 +131,30 @@ def _split_chain_sequences(seq: str, chain_order: list[str]) -> Dict[str, str]:
     return chain_sequences
 
 
+def _cleanup_outputs(out_dir: Path, out_name: str, optimization_mode: str | None = None) -> None:
+    """Remove on-disk artifacts produced by PottsMPNN for a single run."""
+
+    files = [
+        out_dir / f"{out_name}.fasta",
+        out_dir / f"{out_name}_decoding_order.json",
+        out_dir / f"{out_name}_av_loss.csv",
+    ]
+
+    if optimization_mode:
+        files.append(out_dir / f"{out_name}_optimized_{optimization_mode}.fasta")
+
+    pdb_dir = out_dir / f"{out_name}_pdbs"
+
+    for path in files:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    if pdb_dir.exists():
+        shutil.rmtree(pdb_dir, ignore_errors=True)
+
+
 def run_potts_mpnn(
     pdb_path: str | Path,
     designed_chains: list[str] | None = None,
@@ -134,17 +163,25 @@ def run_potts_mpnn(
     fixed_positions: list[int] | None = None,
     num_seqs: int = 8,
     sampling_temp: str = "0.1",
-    model_weights_folder: str = "vanilla_model_weights",
+    optimization_temperature: str = "0.0",
+    model_weights_folder: str = "soluble_model_weights",
     backbone_noise: float = 0.0,
-    model_name: str = "pottsmpnn_20",
+    model_name: str = "sol_pottsmpnn_msa_20",
+    omit_AAs: list[str] | None = None,
+    dev: str = "cuda",
     *,
     pottsmpnn_repo: str | Path = config.POTTSMPNN_REPO,
     out_dir: str | Path | None = None,
     extra_config: Optional[dict] = None,
-) -> list[PottsMPNNSample]:
+) -> Tuple[list[PottsMPNNSample], list[PottsMPNNSample]]:
     """
     Execute PottsMPNN sequence generation with a call signature mirroring
     ``run_protein_mpnn`` (single PDB path, chain selections, sampling params).
+
+    Returns a tuple of (samples, optimized_samples). The first element always
+    contains the raw sampled sequences. If optimization_mode is set, the second
+    element contains optimized sequences (also attached to the matching sample
+    objects when names align).
 
     Parameters
     ----------
@@ -215,6 +252,8 @@ def run_potts_mpnn(
         hint = f"Available checkpoints: {', '.join(available)}" if available else "No .pt files found in weights folder."
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}\n{hint}")
 
+    if omit_AAs is None:
+        omit_AAs = []
     default_model = {
         "check_path": str(checkpoint_path),
         "hidden_dim": 128,
@@ -227,6 +266,8 @@ def run_potts_mpnn(
     default_inference = {
         "num_samples": num_seqs,
         "temperature": float(str(sampling_temp).split()[0]),
+        # Match sampling temp unless caller overrides; required by sample_seqs
+        "optimization_temperature": float(str(optimization_temperature).split()[0]),
         "noise": backbone_noise,
         "skip_gaps": False,
         "fix_decoding_order": True,
@@ -244,7 +285,7 @@ def run_potts_mpnn(
         "bias_AA_json": "",
         "tied_positions_json": "",
         "bias_by_res_json": "",
-        "omit_AAs": [],
+        "omit_AAs": omit_AAs,
         "pssm_threshold": 0.0,
         "pssm_multi": 0.0,
         "pssm_log_odds_flag": False,
@@ -253,7 +294,7 @@ def run_potts_mpnn(
 
     cfg = OmegaConf.create(
         {
-            "dev": "cuda",
+            "dev": dev,
             "out_dir": str(out_dir or "outputs/pottsmpnn"),
             "out_name": pdb_name,
             "input_list": str(input_list_path),
@@ -285,7 +326,9 @@ def run_potts_mpnn(
 
         sample_seqs(sample_args)
 
-    results: list[PottsMPNNSample] = []
+    samples: list[PottsMPNNSample] = []
+    samples_by_name: Dict[str, PottsMPNNSample] = {}
+    optimized_samples: list[PottsMPNNSample] = []
 
     fasta_path = out_dir_path / f"{cfg.out_name}.fasta"
     metrics_path = out_dir_path / f"{cfg.out_name}_av_loss.csv"
@@ -295,14 +338,14 @@ def run_potts_mpnn(
         for name, seq in _read_fasta(fasta_path).items():
             chain_sequences = _split_chain_sequences(seq, chain_order)
 
-            results.append(
-                PottsMPNNSample(
-                    sequence=seq,
-                    chain_sequences=chain_sequences,
-                    sample_number=_parse_sample_number(name),
-                    source_file=fasta_path,
-                )
+            sample = PottsMPNNSample(
+                sequence=seq,
+                chain_sequences=chain_sequences,
+                sample_number=_parse_sample_number(name),
+                source_file=fasta_path,
             )
+            samples.append(sample)
+            samples_by_name[name] = sample
 
     if getattr(cfg, "inference", None) and getattr(cfg.inference, "optimization_mode", ""):
         opt_path = out_dir_path / f"{cfg.out_name}_optimized_{cfg.inference.optimization_mode}.fasta"
@@ -310,14 +353,28 @@ def run_potts_mpnn(
             for name, seq in _read_fasta(opt_path).items():
                 chain_sequences = _split_chain_sequences(seq, chain_order)
 
-                results.append(
-                    PottsMPNNSample(
-                        sequence=seq,
-                        chain_sequences=chain_sequences,
-                        sample_number=_parse_sample_number(name),
-                        source_file=opt_path,
-                    )
+                optimization_mode = getattr(cfg.inference, "optimization_mode", None) or None
+                optimized_sample = PottsMPNNSample(
+                    sequence=seq,
+                    chain_sequences=chain_sequences,
+                    sample_number=_parse_sample_number(name),
+                    source_file=opt_path,
+                    optimization_mode=optimization_mode,
+                    optimized_sequence=seq,
+                    optimized_chain_sequences=chain_sequences,
+                    optimized_source_file=opt_path,
                 )
 
+                optimized_samples.append(optimized_sample)
+
+                if name in samples_by_name:
+                    # Also attach to the originating sample for convenience
+                    existing = samples_by_name[name]
+                    existing.optimization_mode = optimization_mode
+                    existing.optimized_sequence = seq
+                    existing.optimized_chain_sequences = chain_sequences
+                    existing.optimized_source_file = opt_path
+
+    _cleanup_outputs(out_dir_path, cfg.out_name, getattr(cfg.inference, "optimization_mode", None))
     tmp_dir.cleanup()
-    return results
+    return samples, optimized_samples

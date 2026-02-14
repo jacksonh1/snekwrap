@@ -109,6 +109,52 @@ def extract_sequences_from_structure(structure: Structure.Structure) -> dict[str
     return sequences
 
 
+def find_all_disulfides(
+    structure: Structure.Structure,
+    distance_threshold: float = 2.6,
+) -> list[tuple[tuple[str, int], tuple[str, int]]]:
+    """Detect all disulfides (inter- and intrachain) using SG–SG geometry.
+
+    Returns a list of pairs: ((chain_i, resseq_i), (chain_j, resseq_j)) with i<j.
+    """
+    def select_sg(residue):
+        sg_atoms = [a for a in residue if a.get_name() == "SG"]
+        if not sg_atoms:
+            return None
+        sg_atoms.sort(
+            key=lambda a: a.get_occupancy() if a.get_occupancy() is not None else 0.0,
+            reverse=True,
+        )
+        return sg_atoms[0]
+
+    cysteines: list[tuple[str, int, np.ndarray]] = []  # (chain, resseq, coord)
+
+    for model in structure:  # type: ignore
+        for chain in model:
+            for residue in chain:
+                if residue.get_id()[0] != " ":
+                    continue
+                if residue.get_resname().upper() != "CYS":
+                    continue
+                sg_atom = select_sg(residue)
+                if sg_atom is None:
+                    continue
+                cysteines.append((chain.id, residue.get_id()[1], sg_atom.get_coord()))
+        break  # first model only
+
+    pairs: list[tuple[tuple[str, int], tuple[str, int]]] = []
+    n = len(cysteines)
+    for i in range(n):
+        chain_i, resseq_i, coord_i = cysteines[i]
+        for j in range(i + 1, n):
+            chain_j, resseq_j, coord_j = cysteines[j]
+            dist = np.linalg.norm(coord_i - coord_j)
+            if dist <= distance_threshold:
+                pairs.append(((chain_i, resseq_i), (chain_j, resseq_j)))
+
+    return pairs
+
+
 def save_structure(structure: Structure.Structure, output_path: str | Path) -> Path:
     io = PDBIO()
     io.set_structure(structure)
@@ -344,7 +390,7 @@ def find_intrachain_disulfides(
     return dict(ss_by_chain)
 
 
-def find_all_disulfides(
+def find_all_disulfides_in_pdb(
     pdb_file: str | Path,
     distance_threshold: float = 2.6,
 ) -> list[tuple[tuple[str, int], tuple[str, int]]]:

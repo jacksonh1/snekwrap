@@ -1,8 +1,5 @@
 # snekwrap
-
 written by Jackson C. Halpin
-
-
 
 some code from ColabDesign (https://github.com/sokrypton/ColabDesign.git):
 - Specifically, [./snekwrap/backend/rfdiffusion/colabdesign_utils.py](./snekwrap/backend/rfdiffusion/colabdesign_utils.py) was taken from https://github.com/sokrypton/ColabDesign/blob/main/colabdesign/rf/utils.py
@@ -138,8 +135,6 @@ clustalo: "clustalo"
 ```
 note that you will need to manually set the `colabfold_data` path in your environment if you are using option 4.
 
-
-
 #### multiple configuration options
 the configuration options can be mixed and matched. The order of precedence is:
 1. .env file
@@ -149,46 +144,8 @@ the configuration options can be mixed and matched. The order of precedence is:
 
 
 
-## BioEmu: running in a separate conda environment
-
-If you've installed BioEmu into its own conda environment, you can tell snekwrap to execute BioEmu within that env automatically using `conda run`.
-
-Configure one of the following:
-
-- In `snekwrap/executables.yaml`:
-
-    ```yaml
-    bioemu_executable: "bioemu"     # or absolute path
-    bioemu_conda_env: "bioemu"      # the name of the conda env; set to null to use current env
-    ```
-
-- Or via environment variables (or in a `.env` file):
-
-    ```bash
-    export BIOEMU_EXECUTABLE=bioemu
-    export BIOEMU_CONDA_ENV=bioemu
-    ```
-
-Usage in Python:
-
-```python
-from snekwrap.bioemu import bioemu_exec, bioemu_module
-
-# Run the BioEmu CLI inside the configured conda env
-cmd = bioemu_exec(["--help"], run=False)  # returns the full command string
-print(cmd)
-
-# Actually run it (raises on nonzero exit)
-bioemu_exec(["predict", "--input", "in.fasta", "--out", "outdir"])  # uses conda run -n <env>
-
-# If BioEmu exposes a Python module entry point instead of a CLI executable
-bioemu_module("bioemu.cli", ["predict", "--input", "in.fasta", "--out", "outdir"])  # runs: conda run -n <env> python -m bioemu.cli ...
-```
-
 Notes:
-- If `BIOEMU_CONDA_ENV` (or `bioemu_conda_env`) is unset or null, snekwrap will run BioEmu in the current environment without `conda run`.
 - `conda run -n <env>` does not require shell activation and is robust in non-interactive shells and job schedulers.
-- You can override the executable path with `BIOEMU_EXECUTABLE` (or `bioemu_executable`).
 
 
 
