@@ -1,0 +1,3 @@
+# Images written by the example notebook (e.g. plot_heatmap save_path)
+*.png
+.ipynb_checkpoints/

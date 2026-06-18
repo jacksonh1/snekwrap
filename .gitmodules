@@ -1,3 +1,6 @@
 [submodule "external/PottsMPNN"]
 	path = external/PottsMPNN
 	url = https://github.com/KeatingLab/PottsMPNN.git
+	# Ignore untracked files (e.g. __pycache__ created when importing the modules)
+	# so the submodule doesn't show as "modified"; pinned-commit changes still show.
+	ignore = untracked
