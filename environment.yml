@@ -21,6 +21,8 @@ dependencies:
   - biotite==1.4.0
   - nglview
   - pip:
+    - hatch
+    - hatchling
     - python-dotenv
     - py3Dmol
     - graphein
