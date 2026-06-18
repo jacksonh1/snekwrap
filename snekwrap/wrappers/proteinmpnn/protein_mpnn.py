@@ -41,7 +41,23 @@ def run_protein_mpnn(
     omit_AAs: list[str] | None = None,
     model_name: str = "v_48_020",
     proteinmpnn_repo: str | Path = config.PROTEINMPNN_REPO,
-) -> list[ProteinMPNNSample]:
+) -> tuple[list[ProteinMPNNSample], dict]:
+    # Store all input parameters
+    input_params = dict(
+        pdb_path=str(pdb_path),
+        designed_chains=designed_chains,
+        fixed_chains=fixed_chains,
+        fixed_position_chain=fixed_position_chain,
+        fixed_positions=fixed_positions,
+        num_seqs=num_seqs,
+        sampling_temp=sampling_temp,
+        model_weights_folder=model_weights_folder,
+        backbone_noise=backbone_noise,
+        omit_AAs=omit_AAs,
+        model_name=model_name,
+        proteinmpnn_repo=str(proteinmpnn_repo),
+    )
+    
     proteinmpnn_repo = Path(proteinmpnn_repo)
     if designed_chains is None:
         designed_chains = ["A"]
@@ -184,18 +200,6 @@ def run_protein_mpnn(
                         masked_list = masked_list_list[b_ix]
                         seq = _S_to_seq(S_sample[b_ix], chain_M[b_ix])
                         score = scores[b_ix]
-                        input_params = dict(
-                            PDB_PATH=pdb_path,
-                            designed_chain=designed_chains,
-                            fixed_chain=fixed_chains,
-                            fixed_position_chain=fixed_position_chain,
-                            fixed_positions=fixed_positions,
-                            num_seqs=num_seqs,
-                            sampling_temp=sampling_temp,
-                            MODEL_WEIGHTS_FOLDER=model_weights_folder,
-                            BACKBONE_NOISE=backbone_noise,
-                            MODEL_NAME=model_name,
-                        )
                         results.append(
                             ProteinMPNNSample(
                                 sequence=seq,
@@ -204,4 +208,4 @@ def run_protein_mpnn(
                                 input_params=input_params,
                             )
                         )
-    return results
+    return results, input_params

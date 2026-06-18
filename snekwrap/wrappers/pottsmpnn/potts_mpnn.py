@@ -173,15 +173,15 @@ def run_potts_mpnn(
     pottsmpnn_repo: str | Path = config.POTTSMPNN_REPO,
     out_dir: str | Path | None = None,
     extra_config: Optional[dict] = None,
-) -> Tuple[list[PottsMPNNSample], list[PottsMPNNSample]]:
+) -> Tuple[list[PottsMPNNSample], list[PottsMPNNSample], Dict]:
     """
     Execute PottsMPNN sequence generation with a call signature mirroring
     ``run_protein_mpnn`` (single PDB path, chain selections, sampling params).
 
-    Returns a tuple of (samples, optimized_samples). The first element always
+    Returns a tuple of (samples, optimized_samples, input_params). The first element always
     contains the raw sampled sequences. If optimization_mode is set, the second
     element contains optimized sequences (also attached to the matching sample
-    objects when names align).
+    objects when names align). The third element is a dictionary of all input parameters.
 
     Parameters
     ----------
@@ -199,6 +199,26 @@ def run_potts_mpnn(
     out_dir: Optional override for output directory (default: outputs/pottsmpnn).
     extra_config: Optional dict merged into the generated config.
     """
+
+    # Capture input parameters
+    input_params = {
+        "pdb_path": str(pdb_path),
+        "designed_chains": designed_chains or ["A"],
+        "fixed_chains": fixed_chains or [],
+        "fixed_position_chain": fixed_position_chain,
+        "fixed_positions": fixed_positions,
+        "num_seqs": num_seqs,
+        "sampling_temp": sampling_temp,
+        "optimization_temperature": optimization_temperature,
+        "model_weights_folder": model_weights_folder,
+        "backbone_noise": backbone_noise,
+        "model_name": model_name,
+        "omit_AAs": omit_AAs or [],
+        "dev": dev,
+        "pottsmpnn_repo": str(pottsmpnn_repo),
+        "out_dir": str(out_dir or "outputs/pottsmpnn"),
+        "extra_config": extra_config,
+    }
 
     repo_root = Path(pottsmpnn_repo).expanduser().resolve()
     if not repo_root.exists():
@@ -377,4 +397,4 @@ def run_potts_mpnn(
 
     _cleanup_outputs(out_dir_path, cfg.out_name, getattr(cfg.inference, "optimization_mode", None))
     tmp_dir.cleanup()
-    return samples, optimized_samples
+    return samples, optimized_samples, input_params
