@@ -1,0 +1,3 @@
+[submodule "external/PottsMPNN"]
+	path = external/PottsMPNN
+	url = https://github.com/KeatingLab/PottsMPNN.git

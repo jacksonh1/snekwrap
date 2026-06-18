@@ -32,6 +32,18 @@ create_environment:
 	@echo ">>> conda env created. Activate with:\nconda activate $(PROJECT_NAME)"
 
 
+## Initialize/fetch git submodules (PottsMPNN lives at external/PottsMPNN)
+.PHONY: submodules
+submodules:
+	git submodule update --init --recursive
+
+
+## Pull the latest upstream commit for vendored submodules (e.g. PottsMPNN); commit the bump afterwards
+.PHONY: update_submodules
+update_submodules:
+	git submodule update --remote --merge
+
+
 #################################################################################
 # PROJECT RULES                                                                 #
 #################################################################################

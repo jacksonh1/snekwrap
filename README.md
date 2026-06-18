@@ -7,6 +7,8 @@ some code from ColabDesign (https://github.com/sokrypton/ColabDesign.git):
 some code was adapted from [ProteinMPNN](https://github.com/dauparas/ProteinMPNN):
 - specifically files in [./snekwrap/backend/proteinmpnn/](./snekwrap/backend/proteinmpnn/)
 
+[PottsMPNN](https://github.com/KeatingLab/PottsMPNN) (Keating Lab) is bundled as a git submodule at `external/PottsMPNN` and called directly — the `pottsmpnn` wrapper is just a thin Python layer over it.
+
 ## overview
 A collection of python wrappers to run various bioinformatics/structural biology tools in python
 
@@ -47,9 +49,11 @@ The `snekwrap` library is intended to allow you to handle everything in python a
 ## installation
 
 ```
-git clone https://github.com/jacksonh1/snekwrap.git
+git clone --recurse-submodules https://github.com/jacksonh1/snekwrap.git
 cd snekwrap
 ```
+
+if you already cloned without `--recurse-submodules`, fetch the submodules with `make submodules` (or `git submodule update --init --recursive`).
 
 run `make` to see available commands.
 
@@ -63,6 +67,14 @@ conda create -n snekwrap "python~=3.10"
 conda env update --name snekwrap --file environment.yml
 conda activate snekwrap
 ```
+### PottsMPNN
+[PottsMPNN](https://github.com/KeatingLab/PottsMPNN) is bundled as a git submodule at `external/PottsMPNN` (the model weights are committed in that repo, so no separate download is needed). No path configuration is required — `config.py` defaults to the in-tree submodule.
+
+- **install:** `make submodules` (run automatically if you cloned with `--recurse-submodules`).
+- **runtime dependencies:** PottsMPNN is run in-process, so its requirements must be available in your environment — install `external/PottsMPNN/requirements.txt` (omegaconf, biopython, tqdm, etc.) plus PyTorch.
+- **update to the latest upstream version:** `make update_submodules`, then commit the bumped submodule pointer (`git add external/PottsMPNN && git commit`).
+- **use an external checkout instead:** unlike the other tools, PottsMPNN is vendored as a submodule for convenience; to point at a checkout elsewhere, set the `POTTSMPNN_REPO` env var (or `pottsmpnn_repo` in `executables.yaml`) — see configuration below.
+
 ### RFDiffusion
 RFDiffusion requires a singularity image to run. It's quite easy to set up if you have singularity installed. I just ran:
 ```bash

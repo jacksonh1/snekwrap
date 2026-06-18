@@ -26,8 +26,10 @@ from omegaconf import OmegaConf
 import snekwrap.config as config
 
 # %%
-
-from snekwrap.wrappers.pottsmpnn.sample_seqs import sample_seqs
+# NOTE: PottsMPNN's science modules (sample_seqs, run_utils, potts_mpnn_utils,
+# etab_utils) are NOT vendored here. They live in the PottsMPNN repo/submodule
+# (config.POTTSMPNN_REPO) and use flat, bare imports, so `sample_seqs` is imported
+# lazily inside run_potts_mpnn() while that repo root is on sys.path.
 
 
 @dataclass
@@ -298,12 +300,15 @@ def run_potts_mpnn(
         "binding_energy_cutoff": 8,
         "optimize_pdb": False,
         "optimize_fasta": "",
-        "write_pdb": True,
+        # PDBs written by sample_seqs are not surfaced by this wrapper (they're
+        # cleaned up unused), so skip writing them.
+        "write_pdb": False,
         "fixed_positions_json": str(fixed_positions_json),
         "pssm_json": "",
         "omit_AA_json": "",
         "bias_AA_json": "",
         "tied_positions_json": "",
+        "tied_epistasis": True,
         "bias_by_res_json": "",
         "omit_AAs": omit_AAs,
         "pssm_threshold": 0.0,
@@ -343,6 +348,10 @@ def run_potts_mpnn(
     sample_args = SimpleNamespace(config=str(cfg_path))
 
     with _temporary_sys_path(repo_root), _temporary_cwd(repo_root):
+        # Imported here (not at module top) so PottsMPNN's flat bare imports
+        # (`from run_utils import ...`, `import etab_utils`) resolve against the
+        # repo root that _temporary_sys_path just put on sys.path.
+        from sample_seqs import sample_seqs
 
         sample_seqs(sample_args)
 

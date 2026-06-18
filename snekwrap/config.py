@@ -38,7 +38,8 @@ load_dotenv(override=True)
 # ==============================================================================
 # // main project paths
 # ==============================================================================
-# PROJ_ROOT = Path(__file__).resolve().parents[1]
+# repo root (the directory containing the snekwrap package, Makefile, external/, ...)
+PROJ_ROOT = Path(__file__).resolve().parents[1]
 # logger.info(f"PROJ_ROOT path is: {PROJ_ROOT}")
 
 STANDARD_AMINO_ACIDS = sorted(
@@ -81,7 +82,9 @@ _default_executables = {
     "USalign": "USalign",
     "muscle": "muscle",
     "proteinmpnn_repo": "../ProteinMPNN/",
-    "pottsmpnn_repo": "../PottsMPNN/",
+    # PottsMPNN is bundled as a git submodule at <repo_root>/external/PottsMPNN.
+    # Override with the POTTSMPNN_REPO env var or executables.yaml to use an external checkout.
+    "pottsmpnn_repo": str(PROJ_ROOT / "external" / "PottsMPNN"),
     "rfdiffusion_singularity": "rfd.sif",
     "rfdiffusion_model_dir": "/path/to/rfdiffusion_models",
     # BioEmu related defaults
