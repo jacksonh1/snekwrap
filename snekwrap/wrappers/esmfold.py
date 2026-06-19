@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Union
+from typing import TYPE_CHECKING, List, Union
 
-import torch
-from transformers import AutoTokenizer, EsmForProteinFolding
+# torch/transformers are heavyweight; import them lazily inside the functions that
+# need them so `import snekwrap` doesn't pay for ESMFold when it's not used. This
+# TYPE_CHECKING block keeps the annotations below resolvable for static analysis.
+if TYPE_CHECKING:
+    import torch
+    from transformers import AutoTokenizer, EsmForProteinFolding
 
 
 _TOKENIZER: AutoTokenizer | None = None
@@ -13,6 +17,9 @@ _DEVICE: torch.device | None = None
 
 
 def _get_tokenizer_and_model() -> tuple[AutoTokenizer, EsmForProteinFolding, torch.device]:
+    import torch
+    from transformers import AutoTokenizer, EsmForProteinFolding
+
     global _TOKENIZER, _MODEL, _DEVICE
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -36,6 +43,8 @@ def predict_structure(sequence, output_file: str | Path = "structure.pdb"):
         sequence (str): The amino acid sequence of the protein.
         output_file (str): The path to the output PDB file.
     """
+    import torch
+
     assert isinstance(sequence, str), "Sequence must be a string"
     if ":" in sequence:
         sequence = sequence.replace(":", "X" * 50)
@@ -77,6 +86,7 @@ def predict_multichain_with_linkers(
     """
     Predict multichain complex using glycine linkers instead of colons
     """
+    import torch
 
     # Handle input format
     if isinstance(sequences, list):
