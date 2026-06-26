@@ -20,10 +20,12 @@ dependencies:
   - jupytext
   - biotite==1.4.0
   - nglview
+  - omegaconf
   - pip:
     - hatch
     - hatchling
     - python-dotenv
+    - plotly
     - py3Dmol
     - graphein
     - biopandas

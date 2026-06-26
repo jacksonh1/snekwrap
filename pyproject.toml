@@ -23,6 +23,7 @@ dependencies = [
     "loguru",
     "biopython >= 1.8",
     "pandas",
+    "plotly",
     "transformers",
     "torch",
     "biotite",
