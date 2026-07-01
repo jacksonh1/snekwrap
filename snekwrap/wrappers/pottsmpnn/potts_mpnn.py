@@ -44,6 +44,11 @@ class PottsMPNNSample:
     optimized_sequence: Optional[str] = None
     optimized_chain_sequences: Optional[Dict[str, str]] = None
     optimized_source_file: Optional[Path] = None
+    # PottsMPNN whole-sequence Potts energy of `sequence` (arbitrary units), only set when
+    # run_potts_mpnn(..., compute_energies=True). See _compute_potts_energies for caveats.
+    energy: Optional[float] = None
+    # Energy of `optimized_sequence` (a.u.); set only if optimization ran and compute_energies=True.
+    optimized_energy: Optional[float] = None
 
 
 @contextlib.contextmanager
@@ -157,6 +162,86 @@ def _cleanup_outputs(out_dir: Path, out_name: str, optimization_mode: str | None
         shutil.rmtree(pdb_dir, ignore_errors=True)
 
 
+def _compute_potts_energies(
+    cfg,
+    repo_root: Path,
+    chain_list: list[str],
+    sequences: list[str],
+) -> list[float]:
+    """Recompute PottsMPNN whole-sequence energies for already-generated sequences.
+
+    ``sample_seqs`` ranks its samples by the Potts energy
+    ``E(seq) = sum_i h_i(s_i) + sum_{i<j} J_ij(s_i, s_j)`` but never writes it out. This
+    reloads the model, encodes the backbone once into a single energy table (etab), and
+    scores each sequence against it via ``calc_eners`` -- the same computation
+    ``sample_seqs`` performs internally.
+
+    The returned energies are in arbitrary units. They are comparable *across these
+    sequences* because they all share one backbone/etab (lower = the model prefers that
+    sequence on this structure), but they are NOT comparable across different structures.
+
+    ``sequences`` are the ``':'``-joined per-chain sequences with chains in ``chain_list``
+    order; the ``':'`` separators are stripped before scoring so positions align 1:1 with
+    the etab.
+    """
+    with _temporary_sys_path(repo_root), _temporary_cwd(repo_root):
+        # Bare imports resolve against the repo root just added to sys.path.
+        import torch
+        from run_utils import get_etab
+        from potts_mpnn_utils import PottsMPNN, parse_PDB
+        import etab_utils
+
+        # sample_seqs derives the vocab size from the checkpoint name (msa models use 22).
+        # Replicate it so the model and featurization match the run that produced these
+        # sequences; the wrapper's in-memory cfg.model.vocab is not authoritative.
+        vocab = 22 if "msa" in cfg.model.check_path else 21
+
+        checkpoint = torch.load(cfg.model.check_path, map_location="cpu", weights_only=False)
+        model = PottsMPNN(
+            ca_only=False,
+            num_letters=vocab,
+            vocab=vocab,
+            node_features=cfg.model.hidden_dim,
+            edge_features=cfg.model.hidden_dim,
+            hidden_dim=cfg.model.hidden_dim,
+            potts_dim=cfg.model.potts_dim,
+            num_encoder_layers=cfg.model.num_layers,
+            num_decoder_layers=cfg.model.num_layers,
+            k_neighbors=cfg.model.num_edges,
+            augment_eps=cfg.inference.noise,
+        )
+        model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+        model.eval()
+        model = model.to(cfg.dev)
+        for param in model.parameters():
+            param.requires_grad = False
+
+        # get_etab reads cfg.model.vocab during featurization; keep it consistent.
+        cfg.model.vocab = vocab
+
+        input_pdb = os.path.join(cfg.input_dir, cfg.out_name + ".pdb")
+        pdb_data = parse_PDB(input_pdb, chain_list, skip_gaps=cfg.inference.skip_gaps)
+        etab, E_idx, wt_seq = get_etab(model, pdb_data, cfg, None)
+
+        energies: list[float] = []
+        for seq in sequences:
+            seq_flat = seq.replace(":", "")
+            assert len(seq_flat) == len(wt_seq), (
+                f"generated sequence length {len(seq_flat)} != structure length "
+                f"{len(wt_seq)}; cannot align sequence to the energy table"
+            )
+            seq_tensor = etab_utils.seq_to_tensor(seq_flat).to(
+                dtype=torch.int64, device=E_idx.device
+            )
+            # calc_eners expects [B, n, L]; score one sequence at a time to keep the
+            # expanded etab small for large complexes.
+            batch_scores, _, _ = etab_utils.calc_eners(
+                etab, E_idx, seq_tensor.view(1, 1, -1), None
+            )
+            energies.append(batch_scores.squeeze().cpu().item())
+    return energies
+
+
 def run_potts_mpnn(
     pdb_path: str | Path,
     designed_chains: list[str] | None = None,
@@ -171,6 +256,7 @@ def run_potts_mpnn(
     model_name: str = "sol_pottsmpnn_msa_20",
     omit_AAs: list[str] | None = None,
     dev: str = "cuda",
+    compute_energies: bool = False,
     *,
     pottsmpnn_repo: str | Path = config.POTTSMPNN_REPO,
     out_dir: str | Path | None = None,
@@ -197,6 +283,11 @@ def run_potts_mpnn(
     model_weights_folder: Folder under the PottsMPNN repo containing weights.
     backbone_noise: Backbone noise (maps to PottsMPNN "noise").
     model_name: Checkpoint basename (without extension).
+    compute_energies: If True, recompute each sampled (and optimized) sequence's PottsMPNN
+        whole-sequence energy and attach it to the sample's ``energy`` (and
+        ``optimized_energy``) field. Off by default because it reloads the model and runs an
+        extra encoder pass. Energies are arbitrary units, comparable only across sequences
+        on this same backbone (see ``_compute_potts_energies``).
     pottsmpnn_repo: Location of the PottsMPNN repository.
     out_dir: Optional override for output directory (default: outputs/pottsmpnn).
     extra_config: Optional dict merged into the generated config.
@@ -217,6 +308,7 @@ def run_potts_mpnn(
         "model_name": model_name,
         "omit_AAs": omit_AAs or [],
         "dev": dev,
+        "compute_energies": compute_energies,
         "pottsmpnn_repo": str(pottsmpnn_repo),
         "out_dir": str(out_dir or "outputs/pottsmpnn"),
         "extra_config": extra_config,
@@ -403,6 +495,24 @@ def run_potts_mpnn(
                     existing.optimized_sequence = seq
                     existing.optimized_chain_sequences = chain_sequences
                     existing.optimized_source_file = opt_path
+
+    if compute_energies:
+        # Score every sequence against a single freshly-built energy table. Gather all the
+        # (object, attribute, sequence) targets first so the model is loaded / encoded once.
+        energy_targets: list[tuple[PottsMPNNSample, str, str]] = []
+        for sample in samples:
+            energy_targets.append((sample, "energy", sample.sequence))
+            if sample.optimized_sequence is not None:
+                energy_targets.append((sample, "optimized_energy", sample.optimized_sequence))
+        for optimized_sample in optimized_samples:
+            energy_targets.append((optimized_sample, "energy", optimized_sample.sequence))
+
+        if energy_targets:
+            energies = _compute_potts_energies(
+                cfg, repo_root, chain_order, [seq for _, _, seq in energy_targets]
+            )
+            for (obj, attr, _), energy in zip(energy_targets, energies, strict=True):
+                setattr(obj, attr, energy)
 
     _cleanup_outputs(out_dir_path, cfg.out_name, getattr(cfg.inference, "optimization_mode", None))
     tmp_dir.cleanup()
